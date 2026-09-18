@@ -2,121 +2,95 @@
 
 module online_multiplier_tb;
 
-// Parameters
-parameter n = 8;
-parameter CLK_PERIOD = 10;
+    // Parameters
+    parameter n = 8;
+    parameter CLK_PERIOD = 10;
 
-// Signals
-reg clk;
-reg reset;
-reg [1:0] x;
-reg [1:0] y;
-wire [1:0] p;
+    // Signals
+    reg clk;
+    reg reset;
+    reg [1:0] x;
+    reg [1:0] y;
+    wire [1:0] p;
 
-// Instantiate the module under test
-online_multiplier #(.n(n)) uut (
-    .clk(clk),
-    .reset(reset),
-    .x(x),
-    .y(y),
-    .p(p)
-);
+    // Signed-Digit (SD) Encoding Definitions
+    localparam SD_ZERO = 2'b00; //  0
+    localparam SD_POS1 = 2'b01; // +1
+    localparam SD_NEG1 = 2'b11; // -1
 
-// Clock generation
-initial begin
-    clk = 0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-end
+    // Instantiate Module Under Test
+    online_multiplier #(.n(n)) uut (
+        .clk(clk),
+        .reset(reset),
+        .x(x),
+        .y(y),
+        .p(p)
+    );
 
-// Test stimulus based on exact trace table
-initial begin
-    
-    // Time=0: Initialize
-    reset = 0;
-    x = 2'b00;
-    y = 2'b00;
-    
-    // Wait until Time=5000
-    #5000;
-    
-    // Time=10000: Assert reset
-    #5000;
-    reset = 1;
-    
-    // Time=15000 (just wait, no input change)
-    #5000;
-    
-    // Time=20000: Apply x=00, y=01
-    #5000;
-    x = 2'b00;
-    y = 2'b01;
-    
-    // Time=30000: Apply x=01, y=00
-    #10000;
-    x = 2'b01;
-    y = 2'b00;
-    
-    // Time=40000: Apply x=01, y=01
-    #10000;
-    x = 2'b01;
-    y = 2'b01;
-    
-    // Time=50000: Apply x=00, y=00
-    #10000;
-    x = 2'b00;
-    y = 2'b00;
-    
-    // Time=115000: Wait for output (x=00, y=00 continues)
-    #65000;
-    
-    // Time=180000: Apply x=11, y=00
-    #65000;
-    x = 2'b11;
-    y = 2'b00;
-    
-    // Time=190000: Apply x=01, y=01
-    #10000;
-    x = 2'b01;
-    y = 2'b01;
-    
-    // Time=210000: Apply x=00, y=00
-    #20000;
-    x = 2'b00;
-    y = 2'b00;
-    
-    // Time=275000: Wait for output change (no input change)
-    #65000;
-    
-    // Time=340000: Finish simulation
-    #65000;
-    $finish;
-    
-end
+    // Clock Generation (10ns Period)
+    initial begin
+        clk = 0;
+        forever #(CLK_PERIOD / 2) clk = ~clk;
+    end
 
-// Monitor output
-initial begin
-    $monitor("Time=%0t | reset=%b | x=%b | y=%b | p=%b", 
-             $time, reset, x, y, p);
-end
+    // Stimulus sequence matching the Radix-2 Trace Table
+    initial begin
+        // Step 1: Assert active-high reset
+        reset = 1;
+        x = SD_ZERO;
+        y = SD_ZERO;
 
-// Optional: Add assertions to verify expected outputs
-initial begin
-    // Wait for reset to be asserted
-    wait(reset == 1);
-    @(posedge clk);
-    
-    // Expected outputs at key times
-    // Uncomment these to verify:
-    /*
-    #115000;  
-    if (p != 2'b01) $display("ERROR at 115000ns: p=%b (expected 01)", p);
-    
-    #65000;   // Now at 180000
-    if (p != 2'b01) $display("ERROR at 180000ns: p=%b (expected 01)", p);
-    
-    #95000;   // Now at 275000
-    if (p != 2'b11) $display("ERROR at 275000ns: p=%b (expected 11)", p);
-    */
-end
+        // Hold reset for 2 clock cycles then release
+        repeat (2) @(negedge clk);
+        reset = 0;
+
+        $display("-------------------------------------------------------");
+        $display("   j   |  x[j+4]  |  y[j+4]  | Output p[j+1] | Expected");
+        $display("-------------------------------------------------------");
+
+        // Feed digit stream line-by-line according to trace table
+        apply_step(SD_POS1, SD_POS1, -3, " 0"); // j = -3
+        apply_step(SD_POS1, SD_ZERO, -2, " 0"); // j = -2
+        apply_step(SD_ZERO, SD_POS1, -1, " 0"); // j = -1
+        apply_step(SD_NEG1, SD_NEG1,  0, "+1"); // j =  0
+        apply_step(SD_POS1, SD_NEG1,  1, " 0"); // j =  1
+        apply_step(SD_ZERO, SD_POS1,  2, "-1"); // j =  2
+        apply_step(SD_NEG1, SD_POS1,  3, " 0"); // j =  3
+        apply_step(SD_POS1, SD_ZERO,  4, "+1"); // j =  4
+        apply_step(SD_ZERO, SD_ZERO,  5, "-1"); // j =  5
+        apply_step(SD_ZERO, SD_ZERO,  6, "+1"); // j =  6
+        apply_step(SD_ZERO, SD_ZERO,  7, " 0"); // j =  7
+
+        repeat (2) @(negedge clk);
+        $display("-------------------------------------------------------");
+        $finish;
+    end
+
+    // Helper task to apply inputs on falling edge and sample on rising edge
+    task apply_step(
+        input [1:0] in_x,
+        input [1:0] in_y,
+        input integer step_j,
+        input string expected_p
+    );
+        begin
+            @(negedge clk);
+            x = in_x;
+            y = in_y;
+            @(posedge clk);
+            #1; // Brief delay to allow combinational settling before display
+            $display("  %2d   |    %s    |    %s    |      %s       |    %s",
+                     step_j, format_sd(x), format_sd(y), format_sd(p), expected_p);
+        end
+    endtask
+
+    // String formatter for Signed-Digit output
+    function string format_sd(input [1:0] val);
+        case (val)
+            SD_POS1: format_sd = " +1";
+            SD_NEG1: format_sd = " -1";
+            default: format_sd = "  0";
+        endcase
+    endfunction
 
 endmodule

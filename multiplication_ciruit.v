@@ -15,7 +15,7 @@ reg [0:n-1] CAX_carry = '0;
 reg [0:n-1] CAY_sum = '0;
 reg [0:n-1] CAY_carry = '0;
 
-always @(posedge clk or negedge reset) begin
+always @(posedge clk or posedge reset) begin
     if (reset) begin
         Lx <= 2'b00;
     Ly <= 2'b00;
@@ -99,6 +99,11 @@ if (Ly == 2'b01) begin
 
  reg [0:n+1] V_sum = '0;
  reg [0:n+1] V_carry = '0;
+ reg [0:n+1] next_V_sum;
+reg [0:n+1] next_V_carry;
+
+ reg [0:n+1] Reg_WS = '0;
+reg [0:n+1] Reg_WC = '0;
 
     reg carry_in = 1'b0;
     reg carry_out = 3'b0;
@@ -107,7 +112,7 @@ integer i;
 
 
 
-always @(posedge clk) begin
+always @(*) begin
 
     if(reset)begin
          V_sum <= '0;
@@ -120,37 +125,38 @@ always @(posedge clk) begin
     end
 
     else begin
-        carry_in <= 1'b0; 
+
+        carry_in = 1'b0; 
 
 
 for(i=n-1;i>=0;i--)begin
     
-    V_sum_at_i  <= In_add_y_sum[i] + In_add_x_sum[i] +
+    V_sum_at_i  = In_add_y_sum[i] + In_add_x_sum[i] +
     In_add_y_carry[i] + In_add_x_carry[i] +
     + Reg_WS[i+2]     + Reg_WC[i+2] +  carry_in  ;
     
     
-    carry_out <= V_sum_at_i >> 1;
-    V_sum[i] <= V_sum_at_i % 2;
+    carry_out = V_sum_at_i >> 1;
+    V_sum[i+2] <= V_sum_at_i % 2;
 
     if(i==n-1)begin
-        carry_out <= carry_out + cx + cy ;
+        carry_out = carry_out + cx + cy ;
     end
 
-    V_carry[i] <= carry_out; 
-    carry_in <= carry_out ;
+    V_carry[i+2] <= carry_out; 
+    carry_in = carry_out ;
     
 end
 
- V_sum_at_i <= Reg_WS[1] + Reg_WC[1] + carry_in;
-    carry_out  <= V_sum_at_i >> 1;
-    V_sum[n]   <= V_sum_at_i % 2;
-    V_carry[n] <= carry_out;
-    carry_in   <= carry_out;
+ V_sum_at_i = Reg_WS[1] + Reg_WC[1] + carry_in;
+    carry_out  = V_sum_at_i >> 1;
+    V_sum[1]   <= V_sum_at_i % 2;
+    V_carry[1] <= carry_out;
+    carry_in   = carry_out;
 
-    V_sum_at_i  <= Reg_WS[0] + Reg_WC[0] + carry_in;
-    V_sum[n+1]  <= V_sum_at_i % 2;
-    V_carry[n+1]<= V_sum_at_i >> 1;
+    V_sum_at_i  = Reg_WS[0] + Reg_WC[0] + carry_in;
+    V_sum[0]  <= V_sum_at_i % 2;
+    V_carry[0]<= V_sum_at_i >> 1;
 
     end
      
@@ -159,27 +165,27 @@ end
 
 
 
-wire signed  [3:0] V_4bit = V_sum [0:3];
+wire signed  [3:0] V_4bit = $signed(V_sum [0:3]) + $signed(V_carry[0:3]);
 reg [0:1] Pout = '0;
 
 
 
-always @(posedge clk) begin
-    if(V_4bit >= 4'b0100 )begin
-        Pout <= 2'b01;
-    end else if(V_4bit < 4'b1100)begin
-        Pout <= 2'b11;
+always @(*) begin
+    if(V_4bit >= 4'sb0100 )begin
+        p = 2'b01;
+    end else if(V_4bit < 4'sb1100)begin
+        p = 2'b11;
     end else begin
-        Pout <= 2'b00;
+        p = 2'b00;
     end
-    p <= Pout;
+   
 end
 
 
 reg [0:n+1] M_sum = '0;
 reg [0:n+1] M_carry = '0;
 
-always @(posedge clk) begin
+always @(*) begin
     
         
         case(p)
@@ -188,11 +194,11 @@ always @(posedge clk) begin
                 M_carry <= V_carry;
             end
             2'b01: begin 
-                M_sum <= V_sum -1;      
+                M_sum <= V_sum -1'b1;      
                 M_carry <= V_carry ;  
             end
             2'b11: begin  
-                M_sum <= V_sum + 1;
+                M_sum <= V_sum + 1'b1;
                 M_carry <= V_carry ;
             end
             default: begin
@@ -208,10 +214,9 @@ end
 
 
 
-reg [0:n+1] Reg_WS = '0;
-reg [0:n+1] Reg_WC = '0;
 
-always @(posedge clk or negedge reset) begin
+
+always @(posedge clk or posedge reset) begin
     if (reset) begin
         Reg_WS <= '0;
         Reg_WC <= '0;
