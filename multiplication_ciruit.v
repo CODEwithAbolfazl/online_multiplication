@@ -59,14 +59,14 @@ reg cy = 1'b0;
 
     end else begin
         if (Lx == 2'b01) begin
-    In_add_x_sum = CAX_sum;
-    In_add_x_carry =CAX_carry;
+    In_add_x_sum = CAY_sum;
+    In_add_x_carry =CAY_carry;
      cx = 1'b0;
 
 end
 else if (Lx == 2'b11) begin
-      In_add_x_sum = ~CAX_sum;
-    In_add_x_carry = ~CAX_carry;  
+      In_add_x_sum = ~CAY_sum;
+    In_add_x_carry = ~CAY_carry;  
     cx = 1'b1;             
 end else begin
          In_add_x_sum = '0;
@@ -77,13 +77,13 @@ end else begin
 
 
 if (Ly == 2'b01) begin
-        In_add_y_sum = CAY_sum;
-        In_add_y_carry = CAY_carry;
+        In_add_y_sum = CAX_sum;
+        In_add_y_carry = CAX_carry;
          cy = 1'b0;
     end
     else if (Ly == 2'b11) begin
-        In_add_y_sum = ~CAY_sum;
-        In_add_y_carry = ~CAY_carry;
+        In_add_y_sum = ~CAX_sum;
+        In_add_y_carry = ~CAX_carry;
         cy = 1'b1;
     end else begin
          In_add_y_sum = '0;
@@ -99,8 +99,6 @@ if (Ly == 2'b01) begin
 
  reg [0:n+1] V_sum = '0;
  reg [0:n+1] V_carry = '0;
- reg [0:n+1] next_V_sum;
-reg [0:n+1] next_V_carry;
 
  reg [0:n+1] Reg_WS = '0;
 reg [0:n+1] Reg_WC = '0;
@@ -115,12 +113,12 @@ integer i;
 always @(*) begin
 
     if(reset)begin
-         V_sum <= '0;
-  V_carry <= '0;
+         V_sum = '0;
+  V_carry = '0;
 
-     carry_in <= 1'b0;
-     carry_out <= 3'b0;
-      V_sum_at_i <= 3'b0;
+     carry_in = 1'b0;
+     carry_out = 3'b0;
+      V_sum_at_i = 3'b0;
       
     end
 
@@ -135,28 +133,29 @@ for(i=n-1;i>=0;i--)begin
     In_add_y_carry[i] + In_add_x_carry[i] +
     + Reg_WS[i+2]     + Reg_WC[i+2] +  carry_in  ;
     
+   
     
     carry_out = V_sum_at_i >> 1;
-    V_sum[i+2] <= V_sum_at_i % 2;
+    V_sum[i+2] = V_sum_at_i % 2;
 
     if(i==n-1)begin
         carry_out = carry_out + cx + cy ;
     end
 
-    V_carry[i+2] <= carry_out; 
+    V_carry[i+2] = carry_out; 
     carry_in = carry_out ;
     
 end
 
  V_sum_at_i = Reg_WS[1] + Reg_WC[1] + carry_in;
     carry_out  = V_sum_at_i >> 1;
-    V_sum[1]   <= V_sum_at_i % 2;
-    V_carry[1] <= carry_out;
+    V_sum[1]   = V_sum_at_i % 2;
+    V_carry[1] = carry_out;
     carry_in   = carry_out;
 
     V_sum_at_i  = Reg_WS[0] + Reg_WC[0] + carry_in;
-    V_sum[0]  <= V_sum_at_i % 2;
-    V_carry[0]<= V_sum_at_i >> 1;
+    V_sum[0]  = V_sum_at_i % 2;
+    V_carry[0]= V_sum_at_i >> 1;
 
     end
      
@@ -170,13 +169,13 @@ reg [0:1] Pout = '0;
 
 
 
-always @(*) begin
+always @(posedge clk) begin
     if(V_4bit >= 4'sb0100 )begin
-        p = 2'b01;
+        p <= 2'b01;
     end else if(V_4bit < 4'sb1100)begin
-        p = 2'b11;
+        p <= 2'b11;
     end else begin
-        p = 2'b00;
+        p <= 2'b00;
     end
    
 end
@@ -190,20 +189,20 @@ always @(*) begin
         
         case(p)
             2'b00: begin  
-                M_sum <= V_sum;
-                M_carry <= V_carry;
+                M_sum = V_sum;
+                M_carry = V_carry;
             end
             2'b01: begin 
-                M_sum <= V_sum -1'b1;      
-                M_carry <= V_carry ;  
+                M_sum = V_sum -1'b1;      
+                M_carry = V_carry ;  
             end
             2'b11: begin  
-                M_sum <= V_sum + 1'b1;
-                M_carry <= V_carry ;
+                M_sum = V_sum + 1'b1;
+                M_carry = V_carry ;
             end
             default: begin
-                M_sum <= V_sum;
-                M_carry <= V_carry;
+                M_sum = V_sum;
+                M_carry = V_carry;
             end
         endcase
     
